@@ -12,7 +12,10 @@ xor_outputs = [(0.0,), (1.0,), (1.0,), (0.0,)]
 def eval_genomes(genomes, config):
     for genome_id, genome in genomes:
         genome.fitness = 4.0
-        net = neat.nn.FeedForwardNetwork.create(genome, config)
+        matrix, output_ids = neat.nn.spherical_net.Graph.genes_to_adjacency(genome, config)
+        net = neat.nn.spherical_net.Graph(matrix, output_ids)
+        net.visualize()
+#        net = neat.nn.FeedForwardNetwork.create(genome, config)
         for xi, xo in zip(xor_inputs, xor_outputs):
             output = net.activate(xi)
             genome.fitness -= (output[0] - xo[0]) ** 2
@@ -30,7 +33,7 @@ p = neat.Population(config)
 p.add_reporter(neat.StdOutReporter(False))
 
 # Run until a solution is found.
-winner = p.run(eval_genomes)
+winner = p.run(eval_genomes, n=1)
 
 # Display the winning genome.
 print('\nBest genome:\n{!s}'.format(winner))
