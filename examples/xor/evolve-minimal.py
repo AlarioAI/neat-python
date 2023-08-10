@@ -20,7 +20,7 @@ def eval_genomes(genomes, config):
                 output = net.inference(input_dict)
             except:
                 output = [abs(1-xo[0])]
-            genome.fitness -= (output[0] - xo[0]) ** 2
+            genome.fitness -= abs(output[0] - xo[0])
 
 
 # Load configuration.
