@@ -10,11 +10,16 @@ xor_outputs = [(0.0,), (1.0,), (1.0,), (0.0,)]
 
 
 def eval_genomes(genomes, config):
-    for genome_id, genome in genomes:
+    for _, genome in genomes:
         genome.fitness = 4.0
-        net = neat.nn.FeedForwardNetwork.create(genome, config)
+        matrix, output_ids, biases = neat.nn.spherical.Graph.genes_to_adjacency(genome, config)
+        net = neat.nn.spherical.Graph(matrix, output_ids, biases=biases)
         for xi, xo in zip(xor_inputs, xor_outputs):
-            output = net.activate(xi)
+            input_dict = dict(zip(config.genome_config.input_keys, xi))
+            try: # sometimes the pruning I guess removes an input
+                output = net.inference(input_dict)
+            except:
+                output = [abs(1-xo[0])]
             genome.fitness -= (output[0] - xo[0]) ** 2
 
 
@@ -37,7 +42,11 @@ print('\nBest genome:\n{!s}'.format(winner))
 
 # Show output of the most fit genome against training data.
 print('\nOutput:')
-winner_net = neat.nn.FeedForwardNetwork.create(winner, config)
+matrix, output_ids, biases = neat.nn.spherical.Graph.genes_to_adjacency(winner, config)
+winner_net = neat.nn.spherical.Graph(matrix, output_ids, biases=biases)
+winner_net.visualize()
+
 for xi, xo in zip(xor_inputs, xor_outputs):
-    output = winner_net.activate(xi)
+    input_dict = dict(zip(config.genome_config.input_keys, xi))
+    output = winner_net.inference(input_dict)
     print("  input {!r}, expected output {!r}, got {!r}".format(xi, xo, output))
