@@ -251,6 +251,12 @@ class Graph:
             }
         return adjacency_matrix, config.genome_config.output_keys, biases
 
+    @staticmethod
+    def create(genome, config):
+        matrix, output_nodes, biases = Graph.genes_to_adjacency(genome, config)
+        return Graph(matrix, output_nodes, biases=biases)
+
+
 
 def main():
     # Define adjacency matrix

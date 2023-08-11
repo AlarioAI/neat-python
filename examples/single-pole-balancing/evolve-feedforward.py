@@ -16,7 +16,7 @@ simulation_seconds = 60.0
 
 # Use the NN network phenotype and the discrete actuator force function.
 def eval_genome(genome, config):
-    net = neat.nn.FeedForwardNetwork.create(genome, config)
+    net = neat.nn.Graph.create(genome, config)
 
     fitnesses = []
 
@@ -27,7 +27,12 @@ def eval_genome(genome, config):
         fitness = 0.0
         while sim.t < simulation_seconds:
             inputs = sim.get_scaled_state()
-            action = net.activate(inputs)
+            input_dict = dict(zip(config.genome_config.input_keys, inputs))
+            try:
+              action = net.inference(input_dict)
+            except:
+              breakpoint()
+              action = [0.0]
 
             # Apply action to the simulated cart-pole
             force = cart_pole.discrete_actuator_force(action)
@@ -66,7 +71,7 @@ def run():
     pop.add_reporter(stats)
     pop.add_reporter(neat.StdOutReporter(True))
 
-    pe = neat.ParallelEvaluator(multiprocessing.cpu_count(), eval_genome)
+    pe = neat.ThreadedEvaluator(multiprocessing.cpu_count(), eval_genome)
     winner = pop.run(pe.evaluate)
 
     # Save the winner.
