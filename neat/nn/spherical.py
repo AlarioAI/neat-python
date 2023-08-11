@@ -138,7 +138,7 @@ class Graph:
         self._active_nodes = deque()
 
 
-    def inference(self, input_values:dict, verbose:bool=False) -> dict:
+    def inference(self, input_values:dict, verbose:bool=False, memory:bool=True) -> dict:
         input_values = {self._nodes[label]: value for label, value in input_values.items()}
         # Create source edges for each input node
         source_edges = [Edge(Node("Source", state=value, activation=lambda x: x), node, weight=1) for node, value in input_values.items()]
@@ -186,11 +186,14 @@ class Graph:
         energy_used /= len(self._nodes)
         if verbose:
             print(f"Total energy used: {energy_used}")
-
+        
+        if not memory:
+            self.reset()
+        
         return output_nodes
 
 
-    def visualize(self) -> None:
+    def visualize(self, node_names:dict={}) -> None:
         dot = graphviz.Digraph()
 
         # Find input nodes (nodes with no incoming edges)
@@ -203,9 +206,10 @@ class Graph:
         input_nodes = all_nodes - non_inputs
         
         for node, attr in self._adjacency_dict.items():
+            node_name = node_names.get(node, "")
             activation_function = attr['activation'].__name__
             node_color = 'lightgreen' if node in self._output_node_ids else ('orange' if node in input_nodes else 'lightblue')
-            dot.node(f"{node}", label=f"{node}\nActivation: {activation_function}", style='filled', fillcolor=node_color)
+            dot.node(f"{node}", label=f"{node}\nActivation: {activation_function}\n{node_name}", style='filled', fillcolor=node_color)
 
         for node, attr in self._adjacency_dict.items():
             for neighbor, weight in attr['edges'].items():
@@ -223,11 +227,9 @@ class Graph:
         adjacency_matrix = {}
 
         # Gather expressed connections.
-        connections = [cg.key for cg in genome.connections.values() if cg.enabled]
-        all_nodes = {x for tup in connections for x in tup}
-        # layers = feed_forward_layers(config.genome_config.input_keys, config.genome_config.output_keys, connections)
-        # for layer in layers:
-        # Gather all the biases
+        connections = [cg.key for cg in genome.connections.values()]# if cg.enabled]
+        all_nodes = set([k for k, _ in  genome.nodes.items()] + config.genome_config.input_keys)
+       
         biases = {}
         for node_idx, node in genome.nodes.items():
             biases[node_idx] = node.bias
@@ -240,7 +242,7 @@ class Graph:
                     cg = genome.connections[conn_key]
                     edges[onode] = cg.weight
 
-            if node not in genome.nodes:
+            if node in config.genome_config.input_keys:
                 activation_function = identity
             else:
                 ng = genome.nodes[node]
