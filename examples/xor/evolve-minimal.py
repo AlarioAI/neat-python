@@ -3,6 +3,7 @@
 """
 
 import neat
+from visualize import draw_net
 
 # 2-input XOR inputs and expected outputs.
 xor_inputs = [(0.0, 0.0), (0.0, 1.0), (1.0, 0.0), (1.0, 1.0)]
@@ -41,3 +42,5 @@ winner_net = neat.nn.FeedForwardNetwork.create(winner, config)
 for xi, xo in zip(xor_inputs, xor_outputs):
     output = winner_net.activate(xi)
     print("  input {!r}, expected output {!r}, got {!r}".format(xi, xo, output))
+# node_names = {-1: 'A', -2: 'B', 0: 'A XOR B'}
+draw_net(config, winner, True, filename="winner.svg")

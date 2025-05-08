@@ -51,7 +51,7 @@ def run(config_file):
 
     node_names = {-1: 'A', -2: 'B', 0: 'A XOR B'}
     visualize.draw_net(config, winner, True, node_names=node_names)
-    visualize.draw_net(config, winner, True, node_names=node_names, prune_unused=True)
+    visualize.draw_net(config, winner, True, node_names=node_names, prune_unused=True, filename="winner.svg")
     visualize.plot_stats(stats, ylog=False, view=True)
     visualize.plot_species(stats, view=True)
 
