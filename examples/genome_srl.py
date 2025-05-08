@@ -15,25 +15,20 @@ S_ATTR_SEP = "|"
 # FLOAT_PRECISION = 6 # No longer used for fixed precision formatting
 
 # --- Modified Float Formatting ---
-def _format_float(value):
+def _format_float(value, precision: int):
     """
     Helper to format floats to a string representation without unnecessary
     trailing zeros or decimal points.
     """
     try:
-        # Format with sufficient precision, then strip trailing zeros and decimal points.
-        # Using 10 decimal places during intermediate formatting handles most cases.
-        s = "{:.10f}".format(value).rstrip('0').rstrip('.')
-        # Ensure that a value like 0.0 becomes "0" and not "" or "."
-        if s == '' or s == '-':
-            return '0'
+        # Format with the specified precision, then strip trailing zeros and decimal points.
+        s = f"{value:.{precision}f}"
         return s
     except Exception:
-        # Fallback to default string conversion if formatting fails
-        return str(value)
+        raise ValueError("WTF!!!!")
 
 # --- Serialize Genome Function (using the modified _format_float) ---
-def serialize_genome(op_name: str, genome: neat.DefaultGenome, neat_config: neat.Config) -> str:
+def serialize_genome(op_name: str, genome: neat.DefaultGenome, neat_config: neat.Config, num_digits: int) -> str:
     """
     Serializes a NEAT genome into a string representation using compact float formatting.
     The format includes:
@@ -90,8 +85,8 @@ def serialize_genome(op_name: str, genome: neat.DefaultGenome, neat_config: neat
             # Use the modified _format_float here
             node_str = S_ATTR_SEP.join([
                 str(node_id), # Use original ID for outputs
-                _format_float(node.bias),
-                _format_float(node.response),
+                _format_float(node.bias, num_digits),
+                _format_float(node.response, num_digits),
                 node.activation,
                 node.aggregation
             ])
@@ -110,8 +105,8 @@ def serialize_genome(op_name: str, genome: neat.DefaultGenome, neat_config: neat
         # Use the modified _format_float here
         node_str = S_ATTR_SEP.join([
             str(new_id), # Use new renumbered ID
-            _format_float(node.bias),
-            _format_float(node.response),
+            _format_float(node.bias, num_digits),
+            _format_float(node.response, num_digits),
             node.activation,
             node.aggregation
         ])
@@ -161,7 +156,7 @@ def serialize_genome(op_name: str, genome: neat.DefaultGenome, neat_config: neat
         conn_str_parts = [
             str(remapped_from_id),
             str(remapped_to_id),
-            _format_float(conn.weight)
+            _format_float(conn.weight, num_digits)
         ]
         # Use the suffixes from the user spec
         connections_serialized.append(

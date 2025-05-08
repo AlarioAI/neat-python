@@ -309,7 +309,7 @@ def main():
 
                 if serialize_genome:
                     try:
-                        serialized_string = serialize_genome(op_key, genome_to_save, config)
+                        serialized_string = serialize_genome(op_key, genome_to_save, config, args.truncate_weights_dp)
                         filename = os.path.join(op_solutions_dir, f"sol_{solutions_found_for_op}.genome.txt")
                         with open(filename, 'w') as f:
                             f.write(serialized_string)
