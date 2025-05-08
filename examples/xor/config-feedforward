@@ -13,9 +13,9 @@ activation_mutate_rate  = 0.0
 activation_options      = abs clamped cube exp gauss hat identity inv log relu sigmoid sin softplus square tanh
 
 # node aggregation options
-aggregation_default     = sum
+aggregation_default     = random
 aggregation_mutate_rate = 0.0
-aggregation_options     = sum
+aggregation_options     = sum product mean min max median maxabs
 
 # node bias options
 bias_init_mean          = 0.0
