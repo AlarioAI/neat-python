@@ -8,9 +8,9 @@ reset_on_extinction   = False
 
 [DefaultGenome]
 # node activation options
-activation_default      = sigmoid
+activation_default      = abs
 activation_mutate_rate  = 0.0
-activation_options      = sigmoid
+activation_options      = abs clamped cube exp gauss hat identity inv log relu sigmoid sin softplus square tanh
 
 # node aggregation options
 aggregation_default     = sum
@@ -20,8 +20,8 @@ aggregation_options     = sum
 # node bias options
 bias_init_mean          = 0.0
 bias_init_stdev         = 1.0
-bias_max_value          = 30.0
-bias_min_value          = -30.0
+bias_max_value          = 3.0
+bias_min_value          = -3.0
 bias_mutate_power       = 0.5
 bias_mutate_rate        = 0.7
 bias_replace_rate       = 0.1
@@ -53,8 +53,8 @@ num_outputs             = 1
 # node response options
 response_init_mean      = 1.0
 response_init_stdev     = 0.0
-response_max_value      = 30.0
-response_min_value      = -30.0
+response_max_value      = 3.0
+response_min_value      = -3.0
 response_mutate_power   = 0.0
 response_mutate_rate    = 0.0
 response_replace_rate   = 0.0
