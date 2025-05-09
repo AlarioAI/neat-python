@@ -11,7 +11,7 @@ S_NODE_END_SUFFIX = "_E_NODES_" # Marks end of one node's definition
 S_CONNS_START = "_S_CONNS_"
 S_CONN_PREFIX = "_CONN_"
 S_CONN_END_SUFFIX = "_E_CONNS_" # Marks end of one connection's definition
-S_ATTR_SEP = "|"
+S_ATTR_SEP = " "
 # FLOAT_PRECISION = 6 # No longer used for fixed precision formatting
 
 # --- Modified Float Formatting ---
@@ -51,7 +51,7 @@ def serialize_genome(op_name: str, genome: neat.DefaultGenome, neat_config: neat
     genome_config = neat_config.genome_config
 
     # 1. Genome Start and Operation Name
-    lines.append(f"{S_GEN_START} </{op_name}>") # Use the format from the user spec
+    lines.append(f"{S_GEN_START}{S_ATTR_SEP}</{op_name}>") # Use the format from the user spec
 
     # 2. Configuration Section
     conf_parts = [
@@ -62,7 +62,7 @@ def serialize_genome(op_name: str, genome: neat.DefaultGenome, neat_config: neat
         f"node_gene_type{S_ATTR_SEP}{genome_config.node_gene_type.__name__}",
         f"connection_gene_type{S_ATTR_SEP}{genome_config.connection_gene_type.__name__}"
     ]
-    lines.append(f"{S_CONF_START} {S_ATTR_SEP.join(conf_parts)} {S_CONF_END}")
+    lines.append(f"{S_CONF_START}{S_ATTR_SEP}{S_ATTR_SEP.join(conf_parts)}{S_ATTR_SEP}{S_CONF_END}")
 
     # 3. Node Renumbering and Serialization
     output_node_ids = set(genome_config.output_keys) # Typically 0 to num_outputs - 1
@@ -91,7 +91,7 @@ def serialize_genome(op_name: str, genome: neat.DefaultGenome, neat_config: neat
                 node.aggregation
             ])
             # Use the suffixes from the user spec
-            all_nodes_serialized.append(f"{S_NODE_PREFIX}{node_str}{S_NODE_END_SUFFIX}")
+            all_nodes_serialized.append(f"{S_NODE_PREFIX}{S_ATTR_SEP}{node_str}{S_ATTR_SEP}{S_NODE_END_SUFFIX}")
         else:
              # This case should ideally not happen with standard NEAT genome creation
              print(f"Warning: Expected output node {node_id} not found in genome.")
@@ -111,7 +111,7 @@ def serialize_genome(op_name: str, genome: neat.DefaultGenome, neat_config: neat
             node.aggregation
         ])
         # Use the suffixes from the user spec
-        all_nodes_serialized.append(f"{S_NODE_PREFIX}{node_str}{S_NODE_END_SUFFIX}")
+        all_nodes_serialized.append(f"{S_NODE_PREFIX}{S_ATTR_SEP}{node_str}{S_ATTR_SEP}{S_NODE_END_SUFFIX}")
 
     if all_nodes_serialized:
         lines.append(S_NODES_START)
@@ -160,7 +160,7 @@ def serialize_genome(op_name: str, genome: neat.DefaultGenome, neat_config: neat
         ]
         # Use the suffixes from the user spec
         connections_serialized.append(
-            (remapped_from_id, remapped_to_id, f"{S_CONN_PREFIX}{S_ATTR_SEP.join(conn_str_parts)}{S_CONN_END_SUFFIX}")
+            (remapped_from_id, remapped_to_id, f"{S_CONN_PREFIX}{S_ATTR_SEP}{S_ATTR_SEP.join(conn_str_parts)}{S_ATTR_SEP}{S_CONN_END_SUFFIX}")
         )
 
     # Sort connections based on remapped IDs before adding to lines
@@ -175,209 +175,206 @@ def serialize_genome(op_name: str, genome: neat.DefaultGenome, neat_config: neat
     # 5. Genome End
     lines.append(S_GEN_END)
 
-    return "\n".join(lines)
+    return f"{S_ATTR_SEP}".join(lines)
 
-
-# --- Deserialize Genome Function (Does not need modification for this request) ---
 def deserialize_genome(genome_string: str, neat_config: neat.Config) -> neat.DefaultGenome:
     """
-    Deserializes a string representation back into a NEAT genome.
-    (Code is the same as in neat_context.txt/previous examples,
-     as it parses the string representation created by serialize_genome.
-     No changes needed here to handle the absence of trailing zeros,
-     as float() handles various valid float string formats.)
+    Deserializes a string representation back into a NEAT DefaultGenome.
+    The string format is expected to be a sequence of tokens separated by single spaces.
 
     Args:
         genome_string: The string representation of the genome.
         neat_config: The neat.Config object to use for creating gene instances
                      and providing context. It's crucial that this config is
-                     compatible with the serialized genome's parameters
-                     (gene types, activation/aggregation functions available).
+                     compatible with the serialized genome's parameters.
+
     Returns:
         A neat.DefaultGenome object.
+
     Raises:
         ValueError: If the string format is invalid or inconsistent.
     """
-    lines = genome_string.strip().split('\n')
-    line_idx = 0
-    parsed_conf = {} # Store parsed config values from string
+    tokens = genome_string.strip().split(S_ATTR_SEP)
+    token_iter = iter(tokens)
 
-    # --- Helper to get next line or raise error ---
-    def get_next_line():
-        nonlocal line_idx
-        if line_idx >= len(lines):
-            raise ValueError("Unexpected end of string: More lines expected.")
-        line = lines[line_idx]
-        line_idx += 1
-        return line.strip()
+    def next_token(expected: str = None) -> str:
+        try:
+            token = next(token_iter)
+            if expected and token != expected:
+                raise ValueError(f"Expected token '{expected}', got '{token}'")
+            return token
+        except StopIteration:
+            if expected:
+                raise ValueError(f"Unexpected end of string. Expected '{expected}'.")
+            else:
+                raise ValueError("Unexpected end of string.")
 
     # 1. Genome Start and Operation Name
-    line = get_next_line()
-    if not line.startswith(S_GEN_START + " </"):
-        raise ValueError(f"Expected genome start with op_name (e.g., '{S_GEN_START} </op>'), got '{line}'")
-    # op_name can be extracted here if needed by the caller, but deserialize doesn't use it internally
+    next_token(S_GEN_START)
+    op_name_token = next_token() # e.g., </xor>
+    # op_name = op_name_token[2:-1] # Extract 'xor' from '</xor>' if needed, but not used for genome reconstruction
 
     # 2. Configuration Section
-    line = get_next_line()
-    if not line.startswith(S_CONF_START) or not line.endswith(S_CONF_END):
-        raise ValueError(f"Malformed config line: '{line}' expected start '{S_CONF_START}' and end '{S_CONF_END}'")
-    conf_content = line[len(S_CONF_START):-len(S_CONF_END)].strip()
-    conf_parts = conf_content.split(S_ATTR_SEP)
-
-    # Ensure non-empty and even number of parts for key-value pairs
-    if not conf_parts or len(conf_parts) % 2 != 0:
-         # Handle specific case like S_CONF_START + S_ATTR_SEP + ... which results in leading empty string
-        if len(conf_parts) > 0 and conf_parts[0] == '':
-            conf_parts = conf_parts[1:] # Adjust if split resulted in leading empty string
-            if len(conf_parts) % 2 != 0: # Re-check after adjustment
-                raise ValueError(f"Malformed config content (key-value pairs expected): '{conf_content}'")
-        else:
-            raise ValueError(f"Malformed config content (key-value pairs expected): '{conf_content}'")
-
-
-    for i in range(0, len(conf_parts), 2):
-        key = conf_parts[i].strip()
-        value = conf_parts[i+1].strip()
-        if not key: # Avoid empty keys if separators are adjacent or at ends
-            raise ValueError(f"Empty key found in config content: '{conf_content}'")
+    next_token(S_CONF_START)
+    parsed_conf = {}
+    current_token = next_token()
+    while current_token != S_CONF_END:
+        key = current_token
+        value = next_token()
         parsed_conf[key] = value
+        current_token = next_token()
+    # S_CONF_END already consumed by the loop condition or last next_token()
 
-    # Validate essential config against provided neat_config
     genome_config = neat_config.genome_config
     try:
         s_num_inputs = int(parsed_conf['num_inputs'])
         s_num_outputs = int(parsed_conf['num_outputs'])
-        s_feed_forward = parsed_conf['feed_forward'] == "True" # Case sensitive comparison
+        s_feed_forward = parsed_conf['feed_forward'] == 'True'
         s_node_gene_type_name = parsed_conf['node_gene_type']
         s_conn_gene_type_name = parsed_conf['connection_gene_type']
-
-        if s_num_inputs != genome_config.num_inputs:
-            raise ValueError(f"Config mismatch: num_inputs in string ({s_num_inputs}) != neat_config ({genome_config.num_inputs})")
-        if s_num_outputs != genome_config.num_outputs:
-            raise ValueError(f"Config mismatch: num_outputs in string ({s_num_outputs}) != neat_config ({genome_config.num_outputs})")
-        if s_feed_forward != genome_config.feed_forward:
-            raise ValueError(f"Config mismatch: feed_forward in string ({s_feed_forward}) != neat_config ({genome_config.feed_forward})")
-        if s_node_gene_type_name != genome_config.node_gene_type.__name__:
-            raise ValueError(f"Config mismatch: node_gene_type in string ('{s_node_gene_type_name}') != neat_config ('{genome_config.node_gene_type.__name__}')")
-        if s_conn_gene_type_name != genome_config.connection_gene_type.__name__:
-            raise ValueError(f"Config mismatch: connection_gene_type in string ('{s_conn_gene_type_name}') != neat_config ('{genome_config.connection_gene_type.__name__}')")
-
     except KeyError as e:
-        raise ValueError(f"Missing essential key in config string: {e}. Found keys: {list(parsed_conf.keys())}")
-    except ValueError as e:
-        raise ValueError(f"Invalid value type or mismatch in config string: {e}")
+        raise ValueError(f"Missing essential key in config string: {e}")
+    except ValueError as e: # for int conversion
+        raise ValueError(f"Invalid value type in config string: {e}")
 
+    # Validate config against neat_config (optional, but good practice)
+    if s_num_inputs != genome_config.num_inputs:
+        raise ValueError(f"Config mismatch: num_inputs ({s_num_inputs} vs {genome_config.num_inputs})")
+    if s_num_outputs != genome_config.num_outputs:
+        raise ValueError(f"Config mismatch: num_outputs ({s_num_outputs} vs {genome_config.num_outputs})")
+    if s_feed_forward != genome_config.feed_forward:
+        raise ValueError(f"Config mismatch: feed_forward ({s_feed_forward} vs {genome_config.feed_forward})")
+    if s_node_gene_type_name != genome_config.node_gene_type.__name__:
+        raise ValueError(f"Config mismatch: node_gene_type ({s_node_gene_type_name} vs {genome_config.node_gene_type.__name__})")
+    if s_conn_gene_type_name != genome_config.connection_gene_type.__name__:
+        raise ValueError(f"Config mismatch: connection_gene_type ({s_conn_gene_type_name} vs {genome_config.connection_gene_type.__name__})")
 
-    # Create a new genome. Key is not stored, assign a default (e.g., 0)
-    new_genome_key = 0 # Placeholder key
+    # Create a new genome. Key can be arbitrary for a standalone genome.
+    new_genome_key = 0 # Or handle key generation if part of a larger system.
     genome = neat.DefaultGenome(new_genome_key)
     genome.nodes = {}
     genome.connections = {}
 
+    # Store original (serialized) IDs to map back hidden nodes if necessary for internal NEAT logic
+    # However, the serialized format already uses remapped IDs for hidden nodes.
+    # Output nodes use their direct IDs (0 to num_outputs - 1).
+    # Hidden nodes are renumbered from num_outputs upwards.
+    # So, the IDs parsed from the string are the final IDs for the new genome.
+
     # 3. Nodes Section
-    expected_node_suffix = S_NODE_END_SUFFIX # From user spec
-    if line_idx < len(lines) and lines[line_idx].strip() == S_NODES_START:
-        get_next_line() # Consume S_NODES_START
-        while line_idx < len(lines) and lines[line_idx].strip().startswith(S_NODE_PREFIX):
-            line = get_next_line()
-            if not line.endswith(expected_node_suffix):
-                 raise ValueError(f"Malformed node line: '{line}'. Expected suffix '{expected_node_suffix}'")
-            node_content = line[len(S_NODE_PREFIX):-len(expected_node_suffix)].strip()
-            node_attrs = node_content.split(S_ATTR_SEP)
-            if len(node_attrs) != 5: # id|bias|response|activation|aggregation
-                raise ValueError(f"Malformed node attributes: '{node_content}' (expected 5 parts separated by '{S_ATTR_SEP}')")
+    current_token = next_token()
+    if current_token == S_NODES_START:
+        current_token = next_token() # Consume S_NODES_START, get first _NODE_ or S_CONNS_START or S_GEN_END
+        while current_token == S_NODE_PREFIX: # S_NODE_PREFIX is "_NODE_"
+            # Node: _NODE_ node_id bias response activation aggregation _E_NODES_
+            try:
+                node_id_str = next_token()
+                bias_str = next_token()
+                response_str = next_token()
+                activation_str = next_token()
+                aggregation_str = next_token()
+                next_token(S_NODE_END_SUFFIX) # Consume _E_NODES_
+            except ValueError as e: # Catches next_token errors or StopIteration
+                raise ValueError(f"Malformed node definition: {e}")
 
             try:
-                node_id = int(node_attrs[0])
-                bias = float(node_attrs[1]) # float() handles the compact string format
-                response = float(node_attrs[2]) # float() handles the compact string format
-                activation = node_attrs[3]
-                aggregation = node_attrs[4]
+                node_id = int(node_id_str)
+                bias = float(bias_str)
+                response = float(response_str)
             except ValueError as e:
-                 raise ValueError(f"Invalid node attribute value type: {e} in '{node_content}'")
+                raise ValueError(f"Invalid node attribute value type for node {node_id_str}: {e}")
 
             if node_id in genome.nodes:
                 raise ValueError(f"Duplicate node ID found in string: {node_id}")
 
-            # Ensure activation/aggregation functions are valid for the given config
-            if not genome_config.activation_defs.is_valid(activation):
-                 raise ValueError(f"Invalid activation function '{activation}' not defined in neat_config.")
-            if not genome_config.aggregation_function_defs.is_valid(aggregation):
-                raise ValueError(f"Invalid aggregation function '{aggregation}' not defined in neat_config.")
+            if not genome_config.activation_defs.is_valid(activation_str):
+                raise ValueError(f"Invalid activation function '{activation_str}' for node {node_id} not in neat_config.")
+            if not genome_config.aggregation_function_defs.is_valid(aggregation_str):
+                raise ValueError(f"Invalid aggregation function '{aggregation_str}' for node {node_id} not in neat_config.")
 
-            # Create node gene and set attributes directly
             node_gene = genome_config.node_gene_type(node_id)
+            # Manually set attributes instead of init_attributes, as they come from string
             node_gene.bias = bias
             node_gene.response = response
-            node_gene.activation = activation
-            node_gene.aggregation = aggregation
+            node_gene.activation = activation_str
+            node_gene.aggregation = aggregation_str
             genome.nodes[node_id] = node_gene
-        # Check if the next line is S_CONNS_START or S_GEN_END
-        if line_idx < len(lines) and lines[line_idx].strip() not in [S_CONNS_START, S_GEN_END]:
-            # If S_NODES_START was present, but parsing stopped unexpectedly
-             raise ValueError(f"Expected end of nodes or start of connections, but found: '{lines[line_idx].strip()}'")
+
+            current_token = next_token() # Get next _NODE_ or section start
+    # If current_token was not S_NODES_START, it should be S_CONNS_START or S_GEN_END
 
     # 4. Connections Section
-    expected_conn_suffix = S_CONN_END_SUFFIX # From user spec
-    if line_idx < len(lines) and lines[line_idx].strip() == S_CONNS_START:
-        get_next_line() # Consume S_CONNS_START
-        while line_idx < len(lines) and lines[line_idx].strip().startswith(S_CONN_PREFIX):
-            line = get_next_line()
-            if not line.endswith(expected_conn_suffix):
-                raise ValueError(f"Malformed connection line: '{line}'. Expected suffix '{expected_conn_suffix}'")
-            conn_content = line[len(S_CONN_PREFIX):-len(expected_conn_suffix)].strip()
-            conn_attrs = conn_content.split(S_ATTR_SEP)
-            if len(conn_attrs) != 3: # from_id|to_id|weight
-                 raise ValueError(f"Malformed connection attributes: '{conn_content}' (expected 3 parts separated by '{S_ATTR_SEP}')")
+    if current_token == S_CONNS_START:
+        current_token = next_token() # Consume S_CONNS_START, get first _CONN_ or S_GEN_END
+        while current_token == S_CONN_PREFIX: # S_CONN_PREFIX is "_CONN_"
+            # Connection: _CONN_ from_id to_id weight _E_CONNS_
+            try:
+                from_id_str = next_token()
+                to_id_str = next_token()
+                weight_str = next_token()
+                next_token(S_CONN_END_SUFFIX) # Consume _E_CONNS_
+            except ValueError as e: # Catches next_token errors or StopIteration
+                raise ValueError(f"Malformed connection definition: {e}")
 
             try:
-                from_id = int(conn_attrs[0])
-                to_id = int(conn_attrs[1])
-                weight = float(conn_attrs[2]) # float() handles the compact string format
+                from_id = int(from_id_str)
+                to_id = int(to_id_str)
+                weight = float(weight_str)
             except ValueError as e:
-                 raise ValueError(f"Invalid connection attribute value type: {e} in '{conn_content}'")
+                raise ValueError(f"Invalid connection attribute value type for conn {from_id_str}->{to_id_str}: {e}")
 
-            # Validate node IDs used in connections
-            # from_id can be an input node (<0) or an existing (output/remapped hidden) node.
-            is_from_input = from_id < 0
-            if is_from_input:
-                 # Check if input ID is valid based on num_inputs
-                 if (s_num_inputs + from_id < 0): # e.g., num_inputs=2, valid inputs are -1, -2. If from_id=-3, 2+(-3)<0.
-                     raise ValueError(f"Connection 'from_node' ID {from_id} is an invalid input node ID for num_inputs={s_num_inputs}.")
+            # Validate node IDs
+            is_from_input_node = from_id < 0
+            if is_from_input_node:
+                # Ensure input ID is valid for the configured number of inputs
+                # Input keys are -1, -2, ..., -num_inputs
+                if not (-genome_config.num_inputs <= from_id <= -1):
+                    raise ValueError(f"Connection 'from_node' ID {from_id} is an invalid input node ID for num_inputs={genome_config.num_inputs}.")
             elif from_id not in genome.nodes:
-                 # Check if the 'from' node (which is not an input) exists in the parsed nodes
-                 raise ValueError(f"Connection 'from_node' ID {from_id} not defined in nodes section.")
+                raise ValueError(f"Connection 'from_node' ID {from_id} not defined in nodes section.")
 
-            # to_id must be an existing (output/remapped hidden) node. It cannot be an input node.
-            if to_id < 0:
-                raise ValueError(f"Connection 'to_node' ID {to_id} cannot be an input node.")
-            if to_id not in genome.nodes:
-                 raise ValueError(f"Connection 'to_node' ID {to_id} not defined in nodes section.")
+            if to_id not in genome.nodes: # Output/Hidden nodes must be in genome.nodes
+                raise ValueError(f"Connection 'to_node' ID {to_id} not defined in nodes section.")
+            if to_id < 0 : # to_id cannot be an input node
+                 raise ValueError(f"Connection 'to_node' ID {to_id} cannot be an input node.")
 
 
             conn_key = (from_id, to_id)
             if conn_key in genome.connections:
                 raise ValueError(f"Duplicate connection key found in string: {conn_key}")
 
-            # Create connection gene and set attributes
             conn_gene = genome_config.connection_gene_type(conn_key)
+            # Manually set attributes
             conn_gene.weight = weight
-            conn_gene.enabled = True # Only enabled connections are serialized
+            conn_gene.enabled = True # Connections in string are assumed enabled
             genome.connections[conn_key] = conn_gene
-        # Check if the next line is S_GEN_END
-        if line_idx < len(lines) and lines[line_idx].strip() != S_GEN_END:
-             # If S_CONNS_START was present, but parsing stopped unexpectedly
-            raise ValueError(f"Expected end of connections or genome end, but found: '{lines[line_idx].strip()}'")
+
+            current_token = next_token() # Get next _CONN_ or S_GEN_END
+    # If current_token was not S_CONNS_START, it should be S_GEN_END
 
     # 5. Genome End
-    line = get_next_line()
-    if line != S_GEN_END:
-        raise ValueError(f"Expected genome end '{S_GEN_END}', got '{line}'")
+    if current_token != S_GEN_END:
+        raise ValueError(f"Expected genome end '{S_GEN_END}', got '{current_token}'")
 
-    # Check for unexpected extra lines
-    if line_idx < len(lines):
-        raise ValueError(f"Extra lines found after genome end marker '{S_GEN_END}'. First extra: '{lines[line_idx]}'")
+    # Check if there are any remaining tokens
+    try:
+        extra_token = next(token_iter, None)
+        if extra_token is not None:
+            raise ValueError(f"Extra tokens found after {S_GEN_END}. First extra: '{extra_token}'")
+    except StopIteration: # This is expected if all tokens consumed
+        pass
 
-    # Fitness is not part of serialization, default to None.
-    genome.fitness = None
+    genome.fitness = None # Fitness is not part of this serialization format
+
+    # After populating nodes and connections, it might be necessary to
+    # call genome.configure_new(neat_config) if the DefaultGenome expects this
+    # to finalize some internal state, BUT we've manually constructed it.
+    # The DefaultGenome.configure_new method typically *creates* initial nodes/connections.
+    # Here, we are *reconstructing*, so direct assignment is more appropriate.
+    # We need to ensure the genome's node_indexer is correctly set if new nodes are to be added later.
+    # This can be done by calling config.get_new_node_key with the populated genome.nodes once.
+    if genome.nodes:
+        _ = genome_config.get_new_node_key(genome.nodes)
+
+
     return genome
